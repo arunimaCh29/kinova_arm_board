@@ -1,0 +1,43 @@
+<launch>
+    <!-- Load arguments -->
+    <arg name="use_sim_time" default="true"/>
+    <arg name="debug" default="false" />
+    <arg name="paused" default="true"/>
+    <arg name="robot_name" default="arm_board"/>
+    <arg name="x0" default="0"/>
+    <arg name="y0" default="0"/>
+    <arg name="z0" default="0.7"/>
+    <arg name="prefix" default=""/>
+
+    <!-- Launch Gazebo -->
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
+        <arg name="gui" value="true"/>
+        <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+        <arg name="debug" value="$(arg debug)" />
+        <arg name="paused" value="$(arg paused)"/>
+    </include>
+
+ 
+        <!-- Load URDF to parameter server -->
+        <param name="robot_description" command="$(find xacro)/xacro --inorder $(find kinova_task_board)/urdf/tb.urdf.xacro" />
+
+        <!-- Spawn robot in Gazebo -->
+        <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+            args="-urdf -param robot_description -model $(arg robot_name) 
+                  -x $(arg x0) -y $(arg y0) -z $(arg z0)
+                  -robot_namespace $(arg robot_name)"/>
+
+        <!-- Start joint state publisher -->
+        <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher">
+        </node>
+
+        <!-- Start robot state publisher -->
+        <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" 
+              output="screen" respawn="false">
+               <param name="robot_description" command="$(find xacro)/xacro --inorder $(find kinova_task_board)/urdf/tb.urdf.xacro"/>
+               </node>
+
+        <!-- Launch RViz with custom configuration -->
+        <node name="rviz" pkg="rviz" type="rviz" args="-d $(find kinova_task_board)/configs/rl.rviz"/>
+  
+</launch>

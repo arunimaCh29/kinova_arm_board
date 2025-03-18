@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+    <robot xmlns:xacro="http://ros.org/wiki/xacro">
+    <gazebo reference="table_top">
+        <material>Gazebo/Wood</material>
+        <mu1>0.8</mu1>
+        <mu2>0.8</mu2>
+        <kp>1000000.0</kp>
+        <kd>1.0</kd>
+    </gazebo>
+
+    <gazebo reference="leg1">
+        <material>Gazebo/Grey</material>
+        <mu1>0.8</mu1>
+        <mu2>0.8</mu2>
+    </gazebo>
+
+    <gazebo reference="leg2">
+        <material>Gazebo/Grey</material>
+        <mu1>0.8</mu1>
+        <mu2>0.8</mu2>
+    </gazebo>
+
+    <gazebo reference="leg3">
+        <material>Gazebo/Grey</material>
+        <mu1>0.8</mu1>
+        <mu2>0.8</mu2>
+    </gazebo>
+
+    <gazebo reference="leg4">
+        <material>Gazebo/Grey</material>
+        <mu1>0.8</mu1>
+        <mu2>0.8</mu2>
+    </gazebo>
+    </robot>
