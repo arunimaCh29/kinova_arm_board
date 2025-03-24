@@ -1,0 +1,73 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="task_board">
+
+    <xacro:macro name="task_board_gazebo" params="board_id:='task_board'">
+
+        <!-- <gazebo reference="${board_id}_base_link">
+            <material>Gazebo/Grey</material>
+            <static>true</static>
+        </gazebo> -->
+        
+        <gazebo reference="${board_id}_box_link">
+            <material>Gazebo/FlatBlack</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_red_button_link">
+            <material>Gazebo/Red</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_blue_button_link">
+            <material>Gazebo/Blue</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_starting_slider_link">
+            <material>Gazebo/Gray</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_m5_display_link">
+            <material>Gazebo/Orange</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_m5_blue_display_link">
+            <material>Gazebo/SkyBlue</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_starting_connector_hole_link">
+            <material>Gazebo/Black</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_ending_connector_hole_link">
+            <material>Gazebo/Red</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_door_link">
+            <material>Gazebo/Gray</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_door_handle_link">
+            <material>Gazebo/Gray</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_probe_handle_link">
+            <material>Gazebo/Black</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_probe_link">
+            <material>Gazebo/Gray</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_left_wire_reel_link">
+            <material>Gazebo/Black</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_right_wire_reel_link">
+            <material>Gazebo/Black</material>
+        </gazebo>
+
+        <gazebo>
+            <static>true</static>  
+        </gazebo>
+
+    </xacro:macro>
+
+</robot>

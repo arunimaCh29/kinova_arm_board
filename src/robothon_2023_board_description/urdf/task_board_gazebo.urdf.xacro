@@ -1,0 +1,514 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="task_board">
+
+    <link name="world"/>
+    
+    <!-- Define the task_board macro -->
+    <xacro:macro name="task_board" params="board_id height prefix">
+
+        <!-- Base link for the task board -->
+        <link name="${board_id}_base_link"/>
+
+        <!-- Fixed joint to connect the task board to the world -->
+        <joint name="${board_id}_to_world" type="fixed">
+            <parent link="world"/>
+            <child link="${board_id}_base_link"/>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+        </joint>
+
+        <joint name="${board_id}_box_joint" type="fixed">
+            <origin xyz="0 0 ${height/2}" rpy="0 0 0"/>
+            <parent link="${board_id}_base_link"/>
+            <child link="${board_id}_box_link"/>
+        </joint>
+        
+        <link name="${board_id}_box_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="2.0"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.1535 0.254 ${height}"/>
+                </geometry>
+                <material name="">
+                    <color rgba="0.2 0.2 0.2 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.1535 0.254 ${height}"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- Red and blue buttons -->
+        <joint name="${board_id}_red_button_joint" type="fixed">
+            <origin xyz="-0.0304 0.0967 ${height}" rpy="${pi} 0 0"/>
+            <parent link="${board_id}_base_link"/>
+            <child link="${board_id}_red_button_link"/>
+        </joint>
+
+        <link name="${board_id}_red_button_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.00575" length="0.001"/>
+                </geometry>
+                <material name="">
+                    <color rgba="1 0 0 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.00575" length="0.001"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <joint name="${board_id}_blue_button_joint" type="fixed">
+            <origin xyz="-0.0447 0.0964 ${height}" rpy="${pi} 0 0"/>
+            <parent link="${board_id}_base_link"/>
+            <child link="${board_id}_blue_button_link"/>
+        </joint>
+
+        <link name="${board_id}_blue_button_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.00575" length="0.001"/>
+                </geometry>
+                <material name="">
+                    <color rgba="0 0 1 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.00575" length="0.001"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- Slider -->
+        <joint name="${board_id}_starting_slider_joint" type="fixed">
+            <origin xyz="0.049 0.0610 ${height}" rpy="${pi} 0 ${pi/2}"/>
+            <parent link="${board_id}_base_link"/>
+            <child link="${board_id}_starting_slider_link"/>
+        </joint>
+
+        <link name="${board_id}_starting_slider_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="${-pi} 0 ${-pi/2}"/>
+                <geometry>
+                    <box size="0.0112 0.007 0.0085"/>
+                </geometry>
+                <material name="">
+                    <color rgba="1 1 1 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="${-pi} 0 ${-pi/2}"/>
+                <geometry>
+                    <box size="0.0112 0.007 0.0085"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- M5 display -->
+        <joint name="${board_id}_m5_display_joint" type="fixed">
+            <origin xyz="${0.0239-0.00815} 0.0966 ${height+0.015}" rpy="0 0 0"/>
+            <parent link="${board_id}_base_link"/>
+            <child link="${board_id}_m5_display_link"/>
+        </joint>
+
+        <link name="${board_id}_m5_display_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0.00815 0 -0.0075" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.048 0.0238 0.0135"/>
+                </geometry>
+                <material name="">
+                    <color rgba="1 0 0 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0.00815 0 -0.0075" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.048 0.0238 0.0135"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <joint name="${board_id}_m5_blue_display_joint" type="fixed">
+            <origin xyz="-0.005 0 0.008" rpy="0 0 0"/>
+            <parent link="${board_id}_m5_display_link"/>
+            <child link="${board_id}_m5_blue_display_link"/>
+        </joint>
+
+        <link name="${board_id}_m5_blue_display_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0.00815 0 -0.0075" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.025 0.015 0.001"/>
+                </geometry>
+                <material name="">
+                    <color rgba="0 0 1 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0.00815 0 -0.0075" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.025 0.015 0.005"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- Probe connectors hole -->
+        <joint name="${board_id}_starting_connector_joint" type="fixed">
+            <origin xyz="-0.0445 0.0398 ${height}" rpy="${pi} 0 0"/>
+            <parent link="${board_id}_base_link"/>
+            <child link="${board_id}_starting_connector_hole_link"/>
+        </joint>
+
+        <link name="${board_id}_starting_connector_hole_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.00725" length="0.001"/>
+                </geometry>
+                <material name="">
+                    <color rgba="0 0 0 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.00725" length="0.001"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <joint name="${board_id}_ending_connector_hole_joint" type="fixed">
+            <origin xyz="-0.02 0.0398 ${height}" rpy="${pi} 0 -${pi/4 + pi/24 + pi/96}"/> <!-- 45 + 7.5 + 1.875 to stow the cable btw left reel and blue button -->
+            <parent link="${board_id}_base_link"/>
+            <child link="${board_id}_ending_connector_hole_link"/>
+        </joint>
+
+        <link name="${board_id}_ending_connector_hole_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.00725" length="0.001"/>
+                </geometry>
+                <material name="">
+                    <color rgba="1 0 0 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.00725" length="0.001"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- Door -->
+        <joint name="${board_id}_door_joint" type="fixed">
+            <origin xyz="-0.0157 -0.0445 ${height}" rpy="0 0 0"/>
+            <parent link="${board_id}_base_link"/>
+            <child link="${board_id}_door_link"/>
+        </joint>
+
+        <link name="${board_id}_door_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.08 0.085 0.005"/>
+                </geometry>
+                <material name="">
+                    <color rgba="0.3 0.3 0.3 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.08 0.085 0.005"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <joint name="${board_id}_door_handle_joint" type="fixed">
+            <origin xyz="-0.0198 0 0" rpy="0 ${pi} ${pi}"/>
+            <parent link="${board_id}_door_link"/>
+            <child link="${board_id}_door_handle_link"/>
+        </joint>
+
+        <link name="${board_id}_door_handle_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 ${-pi/4} 0"/>
+                <geometry>
+                    <cylinder radius="0.007" length="0.01"/>
+                </geometry>
+                <material name="">
+                    <color rgba="0.3 0.3 0.3 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 ${-pi/4} 0"/>
+                <geometry>
+                    <cylinder radius="0.007" length="0.01"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <joint name="${board_id}_door_center_of_rotation_joint" type="fixed">
+            <origin xyz="${0.04+0.005} 0 0" rpy="${-pi/2} 0 0"/>
+            <parent link="${board_id}_door_link"/>
+            <child link="${board_id}_door_center_of_rotation_link"/>
+        </joint>
+
+        <link name="${board_id}_door_center_of_rotation_link"/>
+
+        <!-- Probe -->
+        <joint name="${board_id}_probe_handle_joint" type="fixed">
+            <origin xyz="0.0526 -0.102 ${height+0.0135}" rpy="${pi} 0 0"/>
+            <parent link="${board_id}_base_link"/>
+            <child link="${board_id}_probe_handle_link"/>
+        </joint>
+
+        <link name="${board_id}_probe_handle_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.042 0.02 0.027"/>
+                </geometry>
+                <material name="">
+                    <color rgba="1 1 1 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.042 0.02 0.027"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <joint name="${board_id}_probe_joint" type="fixed">
+            <origin xyz="-0.07 0 -0.002" rpy="0 ${pi/2} 0"/>
+            <parent link="${board_id}_probe_handle_link"/>
+            <child link="${board_id}_probe_link"/>
+        </joint>
+
+        <link name="${board_id}_probe_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.005" length="0.1"/>
+                </geometry>
+                <material name="">
+                    <color rgba="0.8 0.8 0.8 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.005" length="0.1"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <joint name="${board_id}_circuit_to_probe_joint" type="fixed">
+            <origin xyz="0.025 -0.003 0" rpy="${pi} 0 0"/>
+            <parent link="${board_id}_door_link"/>
+            <child link="${board_id}_circuit_to_probe_link"/>
+        </joint>
+
+        <link name="${board_id}_circuit_to_probe_link"/>
+
+        <!-- Wire reels -->
+        <joint name="${board_id}_left_wire_reel_joint" type="fixed">
+            <origin xyz="-0.085 0.075 ${height+0.01}" rpy="0 ${pi/4} 0"/>
+            <parent link="${board_id}_base_link"/>
+            <child link="${board_id}_left_wire_reel_link"/>
+        </joint>
+
+        <link name="${board_id}_left_wire_reel_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.027 0.045 0.016"/>
+                </geometry>
+                <material name="">
+                    <color rgba="0.3 0.3 0.3 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.027 0.045 0.016"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <joint name="${board_id}_right_wire_reel_joint" type="fixed">
+            <origin xyz="-0.085 -0.075 ${height+0.01}" rpy="0 ${pi/4} 0"/>
+            <parent link="${board_id}_base_link"/>
+            <child link="${board_id}_right_wire_reel_link"/>
+        </joint>
+
+        <link name="${board_id}_right_wire_reel_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.027 0.045 0.016"/>
+                </geometry>
+                <material name="">
+                    <color rgba="0.3 0.3 0.3 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.027 0.045 0.016"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- Gazebo properties -->
+        <gazebo reference="${board_id}_box_link">
+            <material>Gazebo/FlatBlack</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_red_button_link">
+            <material>Gazebo/Red</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_blue_button_link">
+            <material>Gazebo/Blue</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_starting_slider_link">
+            <material>Gazebo/Gray</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_m5_display_link">
+            <material>Gazebo/Orange</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_m5_blue_display_link">
+            <material>Gazebo/SkyBlue</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_starting_connector_hole_link">
+            <material>Gazebo/Black</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_ending_connector_hole_link">
+            <material>Gazebo/Red</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_door_link">
+            <material>Gazebo/Gray</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_door_handle_link">
+            <material>Gazebo/Gray</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_probe_handle_link">
+            <material>Gazebo/Black</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_probe_link">
+            <material>Gazebo/Gray</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_left_wire_reel_link">
+            <material>Gazebo/Black</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_right_wire_reel_link">
+            <material>Gazebo/Black</material>
+        </gazebo>
+
+        <gazebo>
+            <static>true</static>  
+        </gazebo>
+
+    </xacro:macro>
+
+    <!-- Invoke the task_board macro -->
+    <xacro:task_board board_id="task_board" height="0.085" prefix=""/>
+    
+</robot>
