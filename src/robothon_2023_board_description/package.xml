@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package format="2">
+
+  <name>robothon_2023_board_description</name>
+  <version>0.0.0</version>
+  <description> URDF description of the Robothon 2023 task board</description>
+
+  <author email="mattia.leonori@iit.iit">Mattia Leonori</author>
+
+  <maintainer email="mattia.leonori@iit.iit">Mattia Leonori</maintainer>
+
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>roslaunch</build_depend>
+  <build_depend>urdf</build_depend>
+  <build_depend>xacro</build_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>urdf</exec_depend>
+  <exec_depend>xacro</exec_depend>
+
+</package>

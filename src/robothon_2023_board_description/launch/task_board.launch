@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<launch>
+
+    <!-- Board arguments -->
+    <arg name="board_id" default="task_board"/>
+    <arg name="xacro_robot" default="$(find robothon_2023_board_description)/robots/task_board.urdf.xacro"/>
+
+    <!-- Launch arguments -->
+    <arg name="launch_rviz" default="true"/>
+    <!-- Load Robot description -->
+    <param name="robot_description" command="$(find xacro)/xacro $(arg xacro_robot)
+                                            board_id:=$(arg board_id)"/>
+
+    <!-- Robot state and joint state publishers -->
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" output="screen"/>
+
+    <!-- <node if="$(arg launch_joint_state_pub_gui)" name="joint_state_publisher_gui" type="joint_state_publisher_gui" pkg="joint_state_publisher_gui" output="screen"/> -->
+
+    <!-- Show in Rviz -->
+    <node if="$(arg launch_rviz)" name="rviz" pkg="rviz" type="rviz" args="-d $(find robothon_2023_board_description)/rviz/task_board.rviz"/>
+    
+</launch>

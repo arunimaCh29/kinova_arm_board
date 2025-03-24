@@ -1,0 +1,23 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="task_board">
+
+    <xacro:macro name="task_board_gazebo" params="board_id:='task_board'">
+        <gazebo reference="${board_id}_box_link">
+            <material>Gazebo/White</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_red_hole_link">
+            <material>Gazebo/Red</material>
+        </gazebo>
+
+        <gazebo reference="${board_id}_black_hole_link">
+            <material>Gazebo/Blue</material>
+        </gazebo>
+
+        <gazebo>
+            <static>true</static>  
+        </gazebo>
+
+    </xacro:macro>
+
+</robot>

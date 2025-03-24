@@ -1,0 +1,344 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="task_board" lenght_base_link_box= "0.23" width_base_link_box= "0.30" height_base_link_box= "0.41" height_voltmeter="0.025" height_battery="0.0043">
+
+
+    <!-- ***************** -->
+    <!-- Imported elements -->
+    <!-- ***************** -->
+
+    <xacro:include filename="$(find robothon_2023_board_description)/urdf/task_board.gazebo.xacro"/>
+
+    <!-- ****** -->
+    <!-- Models -->
+    <!-- ****** -->
+
+    <xacro:macro name="task_board" params="board_id:='task_board' lenght_base_link_box width_base_link_box height_base_link_box height_voltmeter height_battery">
+
+        <xacro:task_board_gazebo board_id="${board_id}"/>
+        
+        <link name="${board_id}_base_link">
+            <inertial>
+                <origin xyz="0 0 ${height_base_link_box/2}" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <box size="${lenght_base_link_box} ${width_base_link_box} ${height_base_link_box}"/>
+                </geometry>
+                <material name="">
+                    <color rgba="0 1 0 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.10 0.10 0.10"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- Battery plastic box-->
+        <joint name="${board_id}_battery_box_joint" type="fixed">
+            <origin xyz="0 -0.10 ${height_base_link_box/2 + height_battery/2}" rpy="${pi} 0 0"/>
+            <parent link="${board_id}_base_link"/>
+            <child link="${board_id}_battery_box_link"/>
+        </joint>
+        
+        <link name="${board_id}_battery_box_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="2.0"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.05655 0.04072 ${height_battery}"/>
+                </geometry>
+                <material name="">
+                    <color rgba=" 1 1 1 0.5"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.05655 0.04072 ${height_battery}"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- Battery -->
+        <joint name="${board_id}_battery_joint" type="fixed">
+            <origin xyz="0.01751 0 ${-height_battery/2}" rpy="0 0 0"/>
+            <parent link="${board_id}_battery_box_link"/>
+            <child link="${board_id}_battery_link"/>
+        </joint>
+
+        <link name="${board_id}_battery_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.0091" length="0.001"/>
+                </geometry>
+                <material name="">
+                    <color rgba="0.68 0.68 0.68 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.0091" length="0.001"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- Gold hole inside the battery box -->
+        <joint name="${board_id}_battery_gold_hole_joint" type="fixed">
+            <origin xyz="-0.00365 -0.01035 0" rpy="0 0 0"/>
+            <parent link="${board_id}_battery_box_link"/>
+            <child link="${board_id}_battery_gold_hole_link"/>
+        </joint>
+
+        <link name="${board_id}_battery_gold_hole_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.0012" length="0.001"/>
+                </geometry>
+                <material name="">
+                    <color rgba="1 0.698 0.4 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.0012" length="0.001"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- Voltmeter -->
+        <joint name="${board_id}_voltmeter_joint" type="fixed">
+            <origin xyz="0.05 0.05 ${height_base_link_box/2 + height_voltmeter/2}" rpy="${pi} 0 ${pi}"/>
+            <parent link="${board_id}_base_link"/>
+            <child link="${board_id}_voltmeter_link"/>
+        </joint>
+        
+        <link name="${board_id}_voltmeter_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="2.0"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.05622 0.126 ${height_voltmeter}"/>
+                </geometry>
+                <material name="">
+                    <color rgba=" 0.25 0.25 0.25 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.05622 0.126 ${height_voltmeter}"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- Power on circle -->
+        <joint name="${board_id}_power_on_joint" type="fixed">
+            <origin xyz="0 0.013 ${-height_voltmeter/2}" rpy="0 0 0"/>
+            <parent link="${board_id}_voltmeter_link"/>
+            <child link="${board_id}_power_on_link"/>
+        </joint>
+
+        <link name="${board_id}_power_on_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.013" length="0.001"/>
+                </geometry>
+                <material name="">
+                    <color rgba="0.68 0.68 0.68 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.013" length="0.001"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- Red and black holes -->
+        <joint name="${board_id}_red_hole_joint" type="fixed">
+            <origin xyz="-0.00952 0.05241 ${-height_voltmeter/2}" rpy="0 0 0"/>
+            <parent link="${board_id}_voltmeter_link"/>
+            <child link="${board_id}_red_hole_link"/>
+        </joint>
+
+        <link name="${board_id}_red_hole_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.00575" length="0.001"/>
+                </geometry>
+                <material name="">
+                    <color rgba="1 0 0 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.00575" length="0.001"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <joint name="${board_id}_black_hole_joint" type="fixed">
+            <origin xyz="0.00952 0.05241 ${-height_voltmeter/2}" rpy="0 0 0"/>
+            <parent link="${board_id}_voltmeter_link"/>
+            <child link="${board_id}_black_hole_link"/>
+        </joint>
+
+        <link name="${board_id}_black_hole_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.00575" length="0.001"/>
+                </geometry>
+                <material name="">
+                    <color rgba="0 0 0 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.00575" length="0.001"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- Display -->
+
+        <joint name="${board_id}_display_joint" type="fixed">
+            <origin xyz="0 -0.03433 ${-height_voltmeter/2}" rpy="0 0 0"/>
+            <parent link="${board_id}_voltmeter_link"/>
+            <child link="${board_id}_display_link"/>
+        </joint>
+
+        <link name="${board_id}_display_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.044 0.0259 0.001"/>
+                </geometry>
+                <material name="">
+                    <color rgba="0.72 0.72 0.72 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <box size="0.044 0.0259 0.001"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- Red and black probes -->
+
+        <joint name="${board_id}_red_probe_joint" type="fixed">
+            <origin xyz="${-lenght_base_link_box/2} ${-width_base_link_box/2} ${height_base_link_box/2}" rpy="${pi} 0 0"/>
+            <parent link="${board_id}_base_link"/>
+            <child link="${board_id}_red_probe_link"/>
+        </joint>
+
+        <link name="${board_id}_red_probe_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.00362" length="0.1"/>
+                </geometry>
+                <material name="">
+                    <color rgba="1 0 0 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.00362" length="0.1"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <joint name="${board_id}_black_probe_joint" type="fixed">
+            <origin xyz="${lenght_base_link_box/2} ${width_base_link_box/2} ${height_base_link_box/2}" rpy="${pi} 0 0"/>
+            <parent link="${board_id}_base_link"/>
+            <child link="${board_id}_black_probe_link"/>
+        </joint>
+
+        <link name="${board_id}_black_probe_link">
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="0.3" ixy="0.0" ixz="0.0" iyy="0.3" iyz="0.0" izz="0.3"/>
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.00362" length="0.1"/>
+                </geometry>
+                <material name="">
+                    <color rgba="0 0 0 1"/>
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <geometry>
+                    <cylinder radius="0.00362" length="0.1"/>
+                </geometry>
+            </collision>
+        </link>
+
+    </xacro:macro>
+    
+</robot>

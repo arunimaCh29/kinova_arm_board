@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="voltmeter_circuit">
+
+    <!-- ********* -->
+    <!-- Arguments -->
+    <!-- ********* -->
+
+    <xacro:arg name="board_id" default="voltmeter_circuit"/>
+
+    <!-- ***************** -->
+    <!-- Imported elements -->
+    <!-- ***************** -->
+
+    <xacro:include filename="$(find robothon_2023_board_description)/urdf/voltmeter_circuit.urdf.xacro"/>
+    
+    <!-- ****** -->
+    <!-- Models -->
+    <!-- ****** -->
+
+    <xacro:task_board board_id="$(arg board_id)" lenght_base_link_box= "0.23" width_base_link_box= "0.30" height_base_link_box= "0.41" height_voltmeter="0.025" height_battery = "0.0043"/>
+    
+</robot>
