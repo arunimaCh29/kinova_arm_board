@@ -1,0 +1,3 @@
+[submodule "ros_kortex"]
+    path = src/ros_kortex
+    url = https://github.com/arunimaCh29/ros_kortex.git
