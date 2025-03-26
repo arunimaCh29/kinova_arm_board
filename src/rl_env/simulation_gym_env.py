@@ -55,7 +55,7 @@ class KinovaEnv(gym.Env):
             dtype=np.uint8
         )
         
-         self.end_eff_space = spaces.Box(
+        self.end_eff_space = spaces.Box(
             low=np.array([-1.0]*3 + [-np.pi]*3 + [0.0]),  # x,y,z + theta_x,y,z + timestep
             high=np.array([1.0]*3 + [np.pi]*3 + [1.0]),
             dtype=np.float32
