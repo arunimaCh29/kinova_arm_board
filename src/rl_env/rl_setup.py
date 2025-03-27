@@ -10,7 +10,7 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import Float64
 from kortex_driver.msg import BaseCyclic_Feedback
 import time
-from std_srvs.srv import *
+from std_srvs.srv import Empty as Empty_srv
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -26,7 +26,7 @@ from collections import namedtuple,deque
 import matplotlib
 torch.autograd.set_detect_anomaly(True)
 from torch.utils.tensorboard import SummaryWriter
-import datetime 
+from datetime import datetime 
 from kortex_driver.srv import *
 from kortex_driver.msg import *
 import cv2
@@ -44,12 +44,20 @@ class CustomCNN(BaseFeaturesExtractor):
     """
     Custom CNN feature extractor for processing both images and robot state
     """
-    def __init__(self, observation_space: spaces.Dict):
-        # Extract image dimensions from observation space
-        self.image_dims = observation_space['image'].shape
-        self.state_dims = observation_space['end_eff_space'].shape[0]
+    def __init__(self, observation_space: spaces.Dict, features_dim: int = 128):
+        # Initialize the superclass with the correct parameters
+        super().__init__(observation_space, features_dim)
         
-        super().__init__(observation_space, features_dim=128)
+        # Extract image dimensions from observation space
+        self.image_dims = observation_space['image'].shape  # Should be (84, 84, 3)
+        self.state_dims = observation_space['end_eff_space'].shape[0]  # Should be 7
+        
+        # Calculate CNN output dimension
+        # Input: 84x84x3
+        # After Conv2d(3, 32, 8, 4): 20x20x32
+        # After Conv2d(32, 64, 4, 2): 9x9x64
+        # After Conv2d(64, 32, 3, 1): 7x7x32
+        # After Flatten: 7 * 7 * 32 = 1568
         
         # CNN layers for image processing
         self.cnn = nn.Sequential(
@@ -72,13 +80,30 @@ class CustomCNN(BaseFeaturesExtractor):
         
         # Combined processing
         self.combined = nn.Sequential(
-            nn.Linear(512 + 64, 128),  # 512 from CNN + 64 from state_net
+            nn.Linear(1568 + 64, features_dim),  # 1568 from CNN + 64 from state_net
             nn.ReLU()
         )
 
     def forward(self, observations):
         # Process image through CNN
-        image = observations['image'].permute(0, 3, 1, 2) / 255.0
+        # The image shape should be [batch_size, height, width, channels]
+        # We need to permute to [batch_size, channels, height, width] for PyTorch
+
+        image = observations['image']
+        if len(image.shape) == 3:
+            image = image.unsqueeze(0)  # Add batch dimension if needed
+            
+        # Ensure correct shape [batch, channels, height, width]
+        if image.shape[-1] == 3:  # If channels are last
+            image = image.permute(0, 3, 1, 2)
+        
+        # Normalize image
+        image = image.float() / 255.0
+        
+        # Debug info
+        rospy.logdebug(f"Image shape before CNN: {image.shape}")
+        
+        # Process through CNN
         image_features = self.cnn(image)
         
         # Process robot state
@@ -86,16 +111,86 @@ class CustomCNN(BaseFeaturesExtractor):
         
         # Combine features
         combined = torch.cat([image_features, state_features], dim=1)
+        rospy.logdebug(f"Combined features shape: {combined.shape}")
+        
         return self.combined(combined)
 
 class TensorboardCallback(BaseCallback):
+    """
+    Custom callback for logging to tensorboard.
+    """
     def __init__(self, log_dir, verbose=0):
         super(TensorboardCallback, self).__init__(verbose)
         self.log_dir = log_dir
+        
+    def _init_callback(self) -> None:
+        """
+        Initialize callback parameters.
+        """
+        self.writer = SummaryWriter(self.log_dir)
+        
+    def _on_step(self) -> bool:
+        """
+        Log values and info on each step.
+        """
+        # Log episode reward
+        if self.locals.get('done'):
+            self.logger.record('train/episode_reward', 
+                             self.training_env.get_attr('episode_reward')[0])
+            self.logger.dump(self.num_timesteps)
+        return True
+        
+    def _on_rollout_end(self) -> None:
+        """
+        Called when a rollout ends.
+        """
+        pass
+        
+    def _on_training_end(self) -> None:
+        """
+        Clean up when training ends.
+        """
+        self.writer.close()
 
+class EvaluateCallback(BaseCallback):
+    """
+    Callback for evaluating the agent periodically during training.
+    """
+    def __init__(self, eval_env, log_dir, eval_freq=1000, n_eval_episodes=3, verbose=0):
+        super(EvaluateCallback, self).__init__(verbose)
+        self.eval_env = eval_env
+        self.log_dir = log_dir
+        self.eval_freq = eval_freq
+        self.n_eval_episodes = n_eval_episodes
+        self.best_mean_reward = -np.inf
+        
+    def _init_callback(self):
+        # Create folders if needed
+        if self.log_dir is not None:
+            os.makedirs(self.log_dir, exist_ok=True)
+    
     def _on_step(self):
-        # Log additional info every step
-        self.logger.record('train/episode_reward', self.training_env.get_attr('episode_reward')[0])
+        if self.n_calls % self.eval_freq == 0:
+            # Evaluate the agent
+            mean_reward, std_reward = evaluate_policy(
+                self.model,
+                self.eval_env,
+                n_eval_episodes=self.n_eval_episodes,
+                deterministic=True
+            )
+            
+            rospy.loginfo(f"Evaluation reward: {mean_reward:.2f} ± {std_reward:.2f}")
+            
+            # Log to tensorboard
+            self.logger.record('eval/mean_reward', mean_reward)
+            self.logger.record('eval/reward_std', std_reward)
+            
+            # Save best model
+            if mean_reward > self.best_mean_reward:
+                self.best_mean_reward = mean_reward
+                self.model.save(f"{self.log_dir}/best_model")
+                rospy.loginfo(f"New best model saved with reward {mean_reward:.2f}")
+        
         return True
 
 class KinovaEnv(Env):
@@ -129,11 +224,12 @@ class KinovaEnv(Env):
         })
         
         # Action space: [∆x, ∆y, ∆z, ∆θ, agripper]
-        self.action_space = spaces.Box(
-            low=np.array([-0.05, -0.05, -0.05, -np.pi/4, 0.0]),
-            high=np.array([0.05, 0.05, 0.05, np.pi/4, 1.0]),
-            dtype=np.float32
-        )
+        # self.action_space = spaces.Box(
+        #     low=np.array([-0.05, -0.05, -0.05, -np.pi/4, 0.0]),
+        #     high=np.array([0.05, 0.05, 0.05, np.pi/4, 1.0]),
+        #     dtype=np.float32
+        # )
+        self.action_space = spaces.Box(low=-1, high=1, shape=(5,), dtype=np.float32)
         self.bridge = CvBridge()
         
         self.robot_name = "my_gen3"
@@ -145,7 +241,7 @@ class KinovaEnv(Env):
         # print("roscore launched!")
         # subprocess.Popen(["roslaunch","-p", "11311","kortex_gazebo","spawn_kortex_robot.launch"])
         rospy.init_node('ppo_controller') 
-        # print("Gazebo Launched")
+        rospy.loginfo('ppo_controller launded')
 
         # Initialize ROS subscribers and publishers
         self.states = {'image':[],'end_eff_space':[]}
@@ -168,14 +264,14 @@ class KinovaEnv(Env):
         rospy.wait_for_service('/' + self.robot_name + '/base/activate_publishing_of_action_topic')
 
         # Set up ROS services
-        # rospy.wait_for_service("/gazebo/unpause_physics")
-        # self.unpause = rospy.ServiceProxy("/gazebo/unpause_physics",Empty)
+        rospy.wait_for_service("/gazebo/unpause_physics")
+        self.unpause = rospy.ServiceProxy("/gazebo/unpause_physics",Empty_srv)
         
-        # rospy.wait_for_service("/gazebo/pause_physics")
-        # self.pause = rospy.ServiceProxy("/gazebo/pause_physics",Empty)
+        rospy.wait_for_service("/gazebo/pause_physics")
+        self.pause = rospy.ServiceProxy("/gazebo/pause_physics",Empty_srv)
         
-        # rospy.wait_for_service("/gazebo/reset_simulation")
-        # self.reset_proxy = rospy.ServiceProxy("/gazebo/reset_simulation",Empty)
+        rospy.wait_for_service("/gazebo/reset_simulation")
+        self.reset_proxy = rospy.ServiceProxy("/gazebo/reset_simulation",Empty_srv)
         
         print("all service and topics called")
 
@@ -189,8 +285,9 @@ class KinovaEnv(Env):
         self.callback_thread.daemon = True
         self.callback_thread.start()
 
-        self.last_action = np.zeros(5)  # Initialize with zeros for first action
-        self.last_match_score = 0  # Track previous match score
+        self.episode_reward = 0
+        self.last_action = np.zeros(5)
+        self.last_match_score = 0
         
         # Reward weights
         self.w1 = 0.4  # Task board visibility reward
@@ -314,7 +411,7 @@ class KinovaEnv(Env):
         return (x, y, x + w, y + h)  # Bounding box format (x_min, y_min, x_max, y_max)
 
 
-    def compute_match_score(self,image, template_path='task_board_template.png'):
+    def compute_match_score(self, image, template_path='src/rl_env/task_board_template.png'):
         """
         Computes the match score between the input image and the template.
         The score is based on the number of good keypoint matches.
@@ -327,51 +424,72 @@ class KinovaEnv(Env):
         - match_score: A float representing the match score (0 to 1).
         - bbox: The bounding box (x_min, y_min, x_max, y_max) of the detected task board.
         """
-        # Load the template and convert it to grayscale
-        template = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
-        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        try:
+            # Load the template and convert it to grayscale
+            template = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
+            if template is None:
+                rospy.logerr(f"Failed to load template from {template_path}")
+                return 0, None
+            
+            # Convert input image to grayscale
+            if len(image.shape) == 3:
+                gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            else:
+                gray_image = image
 
-        # Use ORB detector to find keypoints and descriptors
-        orb = cv2.ORB_create()
-        kp1, des1 = orb.detectAndCompute(template, None)
-        kp2, des2 = orb.detectAndCompute(gray_image, None)
+            # Use ORB detector
+            orb = cv2.ORB_create()
+            
+            # Detect and compute for both images
+            kp1, des1 = orb.detectAndCompute(template, None)
+            kp2, des2 = orb.detectAndCompute(gray_image, None)
+            
+            # Check if we have valid descriptors
+            if des1 is None or des2 is None or len(des1) == 0 or len(des2) == 0:
+                return 0, None
 
-        # Use BFMatcher to match descriptors between image and template
-        bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-        matches = bf.match(des1, des2)
+            # Ensure descriptors are in the correct format
+            des1 = np.float32(des1)
+            des2 = np.float32(des2)
 
-        # Sort matches by distance
-        matches = sorted(matches, key=lambda x: x.distance)
+            # Use BFMatcher
+            bf = cv2.BFMatcher(cv2.NORM_L2)
+            matches = bf.match(des1, des2)
 
-        # Calculate the match score (number of good matches / total number of template keypoints)
-        good_matches = len(matches)
-        total_keypoints = len(kp1)
+            # Sort matches by distance
+            matches = sorted(matches, key=lambda x: x.distance)
 
-        # Calculate match score as the ratio of good matches to total keypoints in the template
-        match_score = good_matches / total_keypoints if total_keypoints > 0 else 0
+            # Calculate match score
+            good_matches = [m for m in matches if m.distance < 50]  # Adjust threshold as needed
+            match_score = len(good_matches) / len(kp1) if len(kp1) > 0 else 0
 
-        # Estimate the bounding box of the matched area
-        if good_matches > 10:  # Check if we have enough matches
-            src_pts = np.float32([kp1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
-            dst_pts = np.float32([kp2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
+            # Only compute bounding box if we have enough good matches
+            if len(good_matches) > 10:
+                src_pts = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+                dst_pts = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
 
-            # Find homography to align the template to the detected region
-            M, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+                M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+                if M is not None:
+                    h, w = template.shape
+                    pts = np.float32([[0, 0], [0, h-1], [w-1, h-1], [w-1, 0]]).reshape(-1, 1, 2)
+                    dst = cv2.perspectiveTransform(pts, M)
+                    
+                    x_min = max(0, int(np.min(dst[:, :, 0])))
+                    y_min = max(0, int(np.min(dst[:, :, 1])))
+                    x_max = min(gray_image.shape[1], int(np.max(dst[:, :, 0])))
+                    y_max = min(gray_image.shape[0], int(np.max(dst[:, :, 1])))
+                    
+                    bbox = (x_min, y_min, x_max, y_max)
+                else:
+                    bbox = None
+            else:
+                bbox = None
 
-            # Get the size of the template
-            h, w = template.shape
-            pts = np.float32([[0, 0], [0, h-1], [w-1, h-1], [w-1, 0]]).reshape(-1, 1, 2)
-            dst = cv2.perspectiveTransform(pts, M)
+            return match_score, bbox
 
-            # Get bounding box from transformed points
-            x_min, y_min = np.min(dst, axis=0).flatten()
-            x_max, y_max = np.max(dst, axis=0).flatten()
-
-            bbox = (int(x_min), int(y_min), int(x_max), int(y_max))
-        else:
-            bbox = None
-
-        return match_score, bbox
+        except Exception as e:
+            rospy.logerr(f"Error in compute_match_score: {e}")
+            return 0, None
 
 
     def compute_task_reward(self, image):
@@ -379,46 +497,67 @@ class KinovaEnv(Env):
         Computes the reward based on the match score and provides a reward value.
         The reward is higher when more of the task board is visible (better match).
         """
-        match_score, bbox = self.compute_match_score(image)
+        # Convert PIL Image to numpy array if it's a PIL Image
+        if isinstance(image, PILImage.Image):
+            image = np.array(image)
         
-        # Calculate the reward
-        reward = match_score  # Match score directly used as reward (scaled 0-1)
-        
-        # If there is no match, reward is zero
-        if match_score < 0.1:
-            reward = 0
-        
-        # Plot results
-        plt.figure(figsize=(8, 6))
-        plt.imshow(image)  # Show image in RGB format
-        plt.axis("off")
-
-        # Draw bounding box if detected
-        if bbox:
-            x_min, y_min, x_max, y_max = bbox
-            plt.gca().add_patch(plt.Rectangle((x_min, y_min), x_max - x_min, y_max - y_min, 
-                                            edgecolor='green', linewidth=3, fill=False))
-            plt.title(f"Detected Task Board - Reward: {reward}")
+        # Ensure image is in BGR format for OpenCV
+        if len(image.shape) == 3 and image.shape[2] == 3:
+            image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         else:
-            plt.title("Task board not detected!")
+            rospy.logerr("Invalid image format")
+            return 0, None
+        
+        try:
+            match_score, bbox = self.compute_match_score(image_bgr)
+            
+            # Calculate the reward
+            reward = match_score  # Match score directly used as reward (scaled 0-1)
+            
+            # If there is no match, reward is zero
+            if match_score < 0.1:
+                reward = 0
+            
+            return reward, bbox
+            
+        except Exception as e:
+            rospy.logerr(f"Error in compute_task_reward: {e}")
+            return 0, None
 
-        plt.show()
-        return reward, bbox
+    def _convert_angles_to_radians(self, end_eff_state_dict):
+        """Helper method to convert angles from degrees to radians"""
+        return np.array([
+            end_eff_state_dict['x'],
+            end_eff_state_dict['y'],
+            end_eff_state_dict['z'],
+            np.deg2rad(end_eff_state_dict['theta_x']),  # Convert to radians
+            np.deg2rad(end_eff_state_dict['theta_y']),  # Convert to radians
+            np.deg2rad(end_eff_state_dict['theta_z']),  # Convert to radians
+            0.0  # timestep
+        ], dtype=np.float32)
 
-    
+    def _preprocess_image(self, image):
+        """Helper method to preprocess image to correct size"""
+        if image is None:
+            return np.zeros((84, 84, 3), dtype=np.uint8)
+        
+        # Convert PIL Image to numpy array if needed
+        if isinstance(image, PILImage.Image):
+            image = np.array(image)
+        
+        # Ensure image has 3 channels (RGB)
+        if len(image.shape) == 2:  # Grayscale
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+        elif image.shape[2] == 4:  # RGBA
+            image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
+        
+        # Resize image to match observation space
+        image_resized = cv2.resize(image, (84, 84), interpolation=cv2.INTER_AREA)
+        
+        # Ensure the image is in HWC format (height, width, channels)
+        return image_resized.astype(np.uint8)
+
     def step(self, action):
-        """
-        Execute one time step within the environment.
-        
-        Args:
-            action (np.array): Action to be executed [∆x, ∆y, ∆z, ∆θ, agripper]
-        
-        Returns:
-            tuple: (observation, reward, done, info)
-        """
-        # self.unpause()
-        time.sleep(0.1)  # Allow time for action execution
-        # self.pause()
         try:
             # Execute action using ROS
             my_cartesian_speed = CartesianSpeed()
@@ -443,110 +582,108 @@ class KinovaEnv(Env):
             req.input.handle.identifier = 1000
 
             rospy.loginfo(f"Sending pose ...")
-            self.last_action_notif_type = None
             try:
                 self.execute_action(req)
-            except rospy.ServiceException:
-                rospy.logerr(f"Failed to send pose")
-                return False
-            rospy.loginfo(f"Waiting for pose to finish...")
+                # Wait for action to complete
+                rospy.sleep(0.5)  # Fixed sleep to allow action to complete
+            except rospy.ServiceException as e:
+                rospy.logerr(f"Failed to send pose: {e}")
+                return self.reset()[0], 0, True, True, {}
+
+            # Get single observation after action completes
+            end_eff_state = self._convert_angles_to_radians(self.states['end_eff_space'])
+            image_array = self._preprocess_image(self.states['image'])
             
-
-           
-
-            # Get new observation
             observation = {
-                'image': self.states['image'],
-                'end_eff_space': self.states['end_eff_space']
+                'image': image_array,
+                'end_eff_space': end_eff_state
             }
 
             # Calculate rewards
-            # 1. Task board visibility reward
-            match_score, bbox = self.compute_task_reward(self.states['image'])
-            visibility_reward = match_score
-            
-            # 2. Match score improvement reward
-            score_improvement = match_score - self.last_match_score
-            improvement_reward = score_improvement
-            
-            # 3. Action smoothness reward
-            action_diff = np.linalg.norm(action - self.last_action)
-            smoothness_reward = -action_diff  # Negative because we want to minimize sudden changes
-            
-            # 4. Energy efficiency reward
-            energy_penalty = -np.sum(np.square(action))  # Negative because it's a penalty
-            
-            # Combine rewards with weights
-            reward = (
-                self.w1 * visibility_reward +
-                self.w2 * improvement_reward +
-                self.w3 * smoothness_reward +
-                self.w4 * energy_penalty
-            )
+            try:
+                match_score, bbox = self.compute_task_reward(image_array)
+                visibility_reward = match_score if match_score is not None else 0
+                
+                # Calculate other rewards
+                score_improvement = visibility_reward - self.last_match_score
+                action_diff = np.linalg.norm(action - self.last_action)
+                energy_penalty = -np.sum(np.square(action))
+                
+                # Combine rewards
+                reward = (
+                    self.w1 * visibility_reward +
+                    self.w2 * score_improvement +
+                    self.w3 * (-action_diff) +
+                    self.w4 * energy_penalty
+                )
 
-            # Update last values for next step
-            self.last_action = action
-            self.last_match_score = match_score
-            
-            # Check if episode should end
-            done = False
-            if match_score > 0.8:  # High match score - success
-                reward += 10.0  # Bonus reward
-                done = True
-            elif match_score < 0.1:  # Lost sight of board
-                reward -= 5.0  # Penalty
-                done = True
-            
-            # Additional info for logging
-            info = {
-                'visibility_reward': visibility_reward,
-                'improvement_reward': improvement_reward,
-                'smoothness_reward': smoothness_reward,
-                'energy_penalty': energy_penalty,
-                'match_score': match_score,
-                'bbox': bbox
-            }
+                # Update last values
+                self.last_action = action
+                self.last_match_score = visibility_reward
+                
+                # Check episode termination
+                done = False
+                truncated = False
+                if visibility_reward > 0.8:
+                    reward += 10.0
+                    done = True
+                elif visibility_reward < 0.1:
+                    reward -= 5.0
+                    done = True
+                
+                info = {
+                    'visibility_reward': visibility_reward,
+                    'improvement_reward': score_improvement,
+                    'smoothness_reward': -action_diff,
+                    'energy_penalty': energy_penalty,
+                    'match_score': visibility_reward,
+                    'bbox': bbox
+                }
 
-            self.episode_reward += reward
-            return observation, reward, done, info
+                self.episode_reward += reward
+                return observation, reward, done, truncated, info
+
+            except Exception as e:
+                rospy.logerr(f"Error calculating rewards: {e}")
+                return self.reset()[0], 0, True, True, {}
 
         except Exception as e:
             rospy.logerr(f"Error in step: {e}")
-            return self.reset(), 0, True, {}
+            return self.reset()[0], 0, True, True, {}
 
     def reset(self, seed=None, options=None):
-        """
-        Reset the environment to an initial state.
+        """Reset the environment"""
+        super().reset(seed=seed)
         
-        Args:
-            seed (int, optional): Seed for random number generator
-            options (dict, optional): Additional options for reset
-        
-        Returns:
-            tuple: (observation, info)
-        """
-        super().reset(seed=seed)  # Initialize RNG if seed is provided
-        # self.reset()
-        # Reset simulation
-        rospy.sleep(1)
+        try:
+            # Reset simulation
+            self.reset_proxy()
+            rospy.sleep(1.0)  # Wait for reset to complete
+            
+            # Reset internal variables
+            self.episode_reward = 0
+            self.last_action = np.zeros(5)
+            self.last_match_score = 0
 
-        # Reset internal variables
-        self.last_action = np.zeros(5)
-        self.last_match_score = 0
-        self.episode_reward = 0
+            # Get single observation
+            end_eff_state = self._convert_angles_to_radians(self.states['end_eff_space'])
+            image_array = self._preprocess_image(self.states['image'])
+            
+            observation = {
+                'image': image_array,
+                'end_eff_space': end_eff_state
+            }
+            
+            return observation, {}
+            
+        except Exception as e:
+            rospy.logerr(f"Error in reset: {e}")
+            # Return zero observation on error
+            return {
+                'image': np.zeros((84, 84, 3), dtype=np.uint8),
+                'end_eff_space': np.zeros(7, dtype=np.float32)
+            }, {}
 
-        # Move robot to home position
-        self.example_home_the_robot()
-        
-        # Get initial observation
-        observation = {
-            'image': self.states['image'],
-            'end_eff_space': self.states['end_eff_space']
-        }
-
-        # Return observation and empty info dict
-        return observation, {}
-    
     def close(self):
         """
         Clean up ROS1 resources.
@@ -616,7 +753,7 @@ def evaluate(agent, env, num_episodes):
 def train():
     # Create environment
     env = KinovaEnv()
-    check_env(env)
+    rospy.loginfo(check_env(env))
     
     # Training hyperparameters for quick test
     total_timesteps = 10_000  # Reduced from 1M to 10k steps
@@ -624,23 +761,22 @@ def train():
     n_epochs = 5   # Reduced from 10 to 5
     batch_size = 32  # Reduced from 64 to 32
     
-    # Set up logging
+    # Set up logging with correct datetime usage
     current_time = datetime.now().strftime('%Y%m%d-%H%M%S')
-    log_dir = f"logs/kinova_ppo_{current_time}"
+    log_dir = os.path.join("logs", f"kinova_ppo_{current_time}")
     os.makedirs(log_dir, exist_ok=True)
     
-    print("Starting test training run with:")
-    print(f"Total timesteps: {total_timesteps}")
-    print(f"Steps per update: {n_steps}")
-    print(f"Epochs per update: {n_epochs}")
-    print(f"Batch size: {batch_size}")
+    rospy.loginfo("Starting test training run with:")
+    rospy.loginfo(f"Total timesteps: {total_timesteps}")
+    rospy.loginfo(f"Steps per update: {n_steps}")
+    rospy.loginfo(f"Epochs per update: {n_epochs}")
+    rospy.loginfo(f"Batch size: {batch_size}")
     
     # Initialize PPO with custom policy and hyperparameters
-    policy_kwargs = {
-        "features_extractor_class": CustomCNN,
-        "features_extractor_kwargs": dict(features_dim=128),
-        "net_arch": [dict(pi=[64, 32], vf=[64, 32])]  # Smaller network for faster training
-    }
+    policy_kwargs = dict(
+        features_extractor_class=CustomCNN,
+        net_arch=dict(pi=[64, 32], vf=[64, 32])  # Changed from list to dict
+    )
     
     model = PPO(
         "MultiInputPolicy",
@@ -657,59 +793,37 @@ def train():
         tensorboard_log=log_dir
     )
     
-    # Create callback for logging
-    callback = TensorboardCallback(log_dir)
+    # Create callbacks
+    tensorboard_callback = TensorboardCallback(log_dir)
+    eval_callback = EvaluateCallback(
+        eval_env=env,
+        log_dir=log_dir,
+        eval_freq=1000,
+        n_eval_episodes=3
+    )
     
     # Training loop with more frequent evaluation
     eval_interval = 1000  # Evaluate every 1k steps instead of 10k
     best_mean_reward = -np.inf
     
-    def evaluate_callback(_locals, _globals):
-        nonlocal best_mean_reward
-        
-        # Evaluate the agent
-        mean_reward, std_reward = evaluate_policy(
-            model, 
-            env,
-            n_eval_episodes=3,  # Reduced from 10 to 3 episodes
-            deterministic=True
-        )
-        
-        print(f"Evaluation reward: {mean_reward:.2f} ± {std_reward:.2f}")
-        
-        # Log to tensorboard
-        model.logger.record('eval/mean_reward', mean_reward)
-        model.logger.record('eval/reward_std', std_reward)
-        
-        # Save best model
-        if mean_reward > best_mean_reward:
-            best_mean_reward = mean_reward
-            model.save(f"{log_dir}/best_model")
-            print(f"New best model saved with reward {mean_reward:.2f}")
-            
-        return True
-    
     try:
-        print("Starting training...")
-        # Train the agent
+        rospy.loginfo("Starting training...")
+        # Train the agent with both callbacks
         model.learn(
             total_timesteps=total_timesteps,
-            callback=[
-                callback,
-                evaluate_callback
-            ],
+            callback=[tensorboard_callback, eval_callback],
             tb_log_name="PPO_test"
         )
         
         # Save final model
         model.save(f"{log_dir}/final_model")
-        print("Test training completed!")
+        rospy.loginfo("Test training completed!")
         
     except KeyboardInterrupt:
-        print("Training interrupted! Saving current model...")
+        rospy.loginfo("Training interrupted! Saving current model...")
         model.save(f"{log_dir}/interrupted_model")
     except Exception as e:
-        print(f"Error during training: {e}")
+        rospy.logerr(f"Error during training: {e}")
         raise e
     
     return model, env
@@ -758,45 +872,34 @@ if __name__ == "__main__":
         print("\nTesting best model...")
         test(f"{model.logger.dir}/best_model.zip", env)
         
-    except KeyboardInterrupt:
-        print("\nTraining interrupted by user!")
-        # Clean up ROS and Gazebo
-        try:
-            # Kill Gazebo node
-            subprocess.call(["rosnode", "kill", "/gazebo"])
-            print("Gazebo node killed")
-            
-            # Kill all ROS nodes
-            subprocess.call(["rosnode", "kill", "-a"])
-            print("All ROS nodes killed")
-            
-            # Shutdown ROS
-            rospy.signal_shutdown("User interrupted training")
-            print("ROS shutdown complete")
-            
-            # Close the environment
-            if 'env' in locals():
-                env.close()
-                print("Environment closed")
-                
-        except Exception as e:
-            print(f"Error during cleanup: {e}")
-        finally:
-            print("Exiting program")
-            sys.exit(0)
-            
-    except rospy.ROSInterruptException:
-        print("ROS interrupted")
     except Exception as e:
-        print(f"Error during execution: {e}")
+        rospy.logerr(f"Error during execution: {e}")
     finally:
-        # Always try to clean up
         try:
-            subprocess.call(["rosnode", "kill", "/gazebo"])
-            subprocess.call(["rosnode", "kill", "-a"])
-            rospy.signal_shutdown("Program ended")
+            # Proper cleanup sequence
+            rospy.loginfo("Starting cleanup...")
+            
+            # First close the environment
             if 'env' in locals():
                 env.close()
-        except:
-            pass
-
+                rospy.loginfo("Environment closed")
+            
+            # Kill specific nodes in order
+            subprocess.call(["rosnode", "kill", "/gazebo"])
+            rospy.sleep(1)  # Give time for Gazebo to shutdown
+            
+            # Kill remaining nodes
+            subprocess.call(["rosnode", "kill", "-a"])
+            rospy.sleep(1)  # Give time for nodes to shutdown
+            
+            # Final ROS shutdown
+            rospy.signal_shutdown("Program ended")
+            rospy.sleep(1)  # Give time for ROS to shutdown
+            
+            rospy.loginfo("Cleanup completed")
+            
+        except Exception as e:
+            rospy.logerr(f"Error during cleanup: {e}")
+        finally:
+            # Force exit to avoid ROS time issues
+            os._exit(0)  # Use os._exit instead of sys.exit
